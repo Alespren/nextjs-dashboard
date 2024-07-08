@@ -4,17 +4,19 @@ import { z } from 'zod'
 import { sql } from '@vercel/postgres'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { signIn } from '@/auth'
+import { AuthError } from 'next-auth'
 
 const FormSchema = z.object({
     id: z.string(),
     customerId: z.string({
-        invalid_type_error: 'Please select a customer.'
+        invalid_type_error: 'Please select a customer.',
     }),
     amount: z.coerce
         .number()
         .gt(0, { message: 'Please enter an amount greater than $0.' }),
     status: z.enum(['pending', 'paid'], {
-        invalid_type_error: 'Please select an invoice status'
+        invalid_type_error: 'Please select an invoice status',
     }),
     date: z.string(),
 })
@@ -41,7 +43,7 @@ export async function createInvoice(prevState: State, formData: FormData) {
     if (!validatedFields.success) {
         return {
             errors: validatedFields.error.flatten().fieldErrors,
-            message: 'Missing fields. Failed to create invoice'
+            message: 'Missing fields. Failed to create invoice',
         }
     }
 
@@ -99,6 +101,24 @@ export async function deleteInvoice(id: string) {
     } catch (error) {
         return {
             message: 'Database Error: Failed to Delete Invoice',
+        }
+    }
+}
+
+export async function authenticate(
+    prevState: string | undefined,
+    formData: FormData
+) {
+    try {
+        await signIn('credentials', formData)
+    } catch (error) {
+        if (error instanceof AuthError) {
+            switch (error.type) {
+                case 'CredentialsSignin':
+                    return 'Invalid credentials.'
+                default:
+                    return 'Something went wrong.'
+            }
         }
     }
 }
